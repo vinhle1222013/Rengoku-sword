@@ -1,0 +1,170 @@
+nst hf = { customDisplayName: "Rengoku" };
+const vel = 1;
+const cooldown = 60000;
+const clickCooldowns = {};
+const activeDash = {};
+const dashTrailDuration = 20;
+const trailParticleInterval = 1;
+let ct = 0;
+
+function trailParticle(pos) {
+    api.playParticleEffect({
+        dir1: [-0.5, -0.5, -0.5],
+        dir2: [0.5, 0.5, 0.5],
+        pos1: pos,
+        pos2: pos,
+        texture: "square_particle",
+        minLifeTime: 0.75,
+        maxLifeTime: 0.75,
+        minEmitPower: 3,
+        maxEmitPower: 3,
+        minSize: 0.4,
+        maxSize: 0.8,
+        manualEmitCount: 50,
+        gravity: [0, 0, 0],
+        colorGradients: [
+            {
+                timeFraction: 0,
+                minColor: [255, 150, 0, 1],
+                maxColor: [255, 50, 0, 1],
+            },
+        ],
+        velocityGradients: [
+            {
+                timeFraction: 0,
+                factor: 2,
+                factor2: 2,
+            },
+        ],
+        blendMode: 1,
+    });
+}
+
+function canClick(id) {
+    const now = Date.now();
+    const last = clickCooldowns[id] || 0;
+    if (now - last >= cooldown) {
+        clickCooldowns[id] = now;
+        return true;
+    }
+    return false;
+}
+
+function getDist(x, y, z, x1, y1, z1) {
+    return Math.sqrt((x - x1) ** 2 + (y - y1) ** 2 + (z - z1) ** 2);
+}
+
+function isPlayerOrMob(id) {
+    return (api.getPlayerIds().includes(id) || api.getMobIds().includes(id));
+}
+
+function onPlayerAltAction(id) {
+    const held = api.getHeldItem(id);
+    if (!held || held.attributes?.customDisplayName !== hf.customDisplayName) return;
+
+    if (!canClick(id)) {
+        api.sendMessage(id, "Skill is not ready!", { color: "yellow" });
+        return;
+    }
+
+    const facing = api.getPlayerFacingInfo(id);
+    if (!facing || !facing.dir) return;
+
+    const dir = facing.dir;
+    const pos = api.getPosition(id);
+
+    api.broadcastSound("cannonFire3", 1, 5, {
+        playerIdOrPos: id,
+        maxHearDist: 20
+    });
+
+    api.applyImpulse(id, dir[0] * 30, dir[1] * 30, dir[2] * 30);
+
+    activeDash[id] = dashTrailDuration;
+
+    const scanRange = 12;
+    const entities = api.getEntitiesInRect(
+        [pos[0] - scanRange, pos[1] - 2, pos[2] - scanRange],
+        [pos[0] + scanRange, pos[1] + 2, pos[2] + scanRange]
+    );
+
+    for (let i = 0; i < entities.length; i++) {
+        const target = entities[i];
+        if (target === id || !isPlayerOrMob(target)) continue;
+
+        const targetPos = api.getPosition(target);
+        const dist = getDist(pos[0], pos[1], pos[2], targetPos[0], targetPos[1], targetPos[2]);
+
+        if (dist <= scanRange) {
+            api.applyHealthChange(target, -1000, id);
+        }
+    }
+
+    api.applyEffect(id, "Coundow", 60000, { inbuiltLevel: 1, icon: "Gold Sword" });
+}
+
+function tick() {
+    ct++;
+
+    for (const id of api.getPlayerIds()) {
+        if (activeDash[id] > 0) {
+            if (ct % trailParticleInterval === 0) {
+                const pos = api.getPosition(id);
+                trailParticle(pos);
+            }
+            activeDash[id]--;
+        }
+    }
+}
+
+const damage1 = 80;
+const realName = "Gold Sword";
+const fakeName = "Rengoku";
+
+function onPlayerDamagingOtherPlayer(playerId, mobId, damage, item) {
+    const held = api.getHeldItem(playerId);
+
+    if (held && held.name === realName && held.attributes?.customDisplayName === fakeName) {
+        // Tăng thêm damage
+        api.applyHealthChange(mobId, -damage - damage1, playerId);
+
+        // Gây hiệu ứng Poison và Burn
+        api.applyEffect(mobId, "Poisoned", 5000, { inbuiltLevel: 5 });
+        });
+
+        // Gây hiệu ứng particle tại vị trí mob
+        const pos = api.getPosition(mobId);
+        if (pos) {
+            api.playParticleEffect({
+                dir1: [-0.5, -0.5, -0.5],
+                dir2: [0.5, 0.5, 0.5],
+                pos1: pos,
+                pos2: pos,
+                texture: "square_particle",
+                minLifeTime: 0.5,
+                maxLifeTime: 0.5,
+                minEmitPower: 2,
+                maxEmitPower: 2,
+                minSize: 0.4,
+                maxSize: 0.8,
+                manualEmitCount: 20,
+                gravity: [0, -2, 0],
+                colorGradients: [
+                    {
+                        timeFraction: 0,
+                        minColor: [255, 150, 0, 1],
+                        maxColor: [255, 50, 0, 1],
+                    },
+                ],
+                velocityGradients: [
+                    {
+                        timeFraction: 0,
+                        factor: 2,
+                        factor2: 2,
+                    },
+                ],
+                blendMode: 1,
+            });
+        }
+    }
+}
